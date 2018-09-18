@@ -1,29 +1,17 @@
 #include <stdio.h>
-#include <stdint.h>
 #include <pcap.h> 
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
-/*struct Ethernet {
-    u_char srcMac[6];
-    u_char desMac[6];
-    uint16_t type;
-};
-void parsMac(const u_char* flag, u_char *Mac) {
-  for(int i=0; i<6 ; i++) {
-    Mac[i] = *flag;
-    //printf("%d\n",eth.desMac[i]);
-    flag ++;
-  }	
-} */
+
 void dump(const u_char* p, int len) {
   if(len<=0) {
     printf("None\n");
     return;
   }
-  for(int i =0; i < len; i++){
+  for(int i =0; i < len; i++) {
     printf("%02x " , *p);
     p++;
     if((i & 0x0f) == 0x0f)
@@ -31,15 +19,18 @@ void dump(const u_char* p, int len) {
   }
   printf("\n");
 }
+
 void usage() {
   printf("syntax: pcap_test <interface>\n");
   printf("sample: pcap_test wlan0\n");
 }
+
 int main(int argc, char* argv[]) {
   if (argc != 2) {
     usage();
     return -1;
   }
+
   char* dev = argv[1];
   char errbuf[PCAP_ERRBUF_SIZE];
 		
@@ -48,6 +39,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "couldn't open device %s: %s\n", dev, errbuf);
     return -1;
   }
+
   while (true) {
     struct pcap_pkthdr* header;
     struct ether_header *eth;
@@ -87,21 +79,7 @@ int main(int argc, char* argv[]) {
       dump(packet+tHL, header->caplen - tHL);
   	
     printf("\n");
-    /*struct Ethernet eth;
-    parsMac(packet,eth.desMac);
-    parsMac(packet+6,eth.srcMac);
-    eth.type = *(packet+12);
-    printf("%04x\n",eth.type); 
-    if (eth.type != 0x0008) continue; //IP , little endian 
-		
-    for(int i=0 ; i< 6 ; i++) 
-      printf("%d ", eth.desMac[i]);
-    printf("\n");
-    for(int i=0 ; i< 6 ; i++) 
-      printf("%d ", eth.srcMac[i]);
-    printf("\n"); */
-    
-    //dump(packet , header->caplen);
+
   }
   pcap_close(handle);
   return 0;
