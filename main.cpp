@@ -54,31 +54,36 @@ int main(int argc, char* argv[]) {
    
     eth = (struct ether_header *) packet;
     
-    if (ntohs(eth->ether_type) != ETHERTYPE_IP) continue; //not IP, big endian -> little endian
-    iph = (struct ip *)(packet + sizeof(struct ether_header)); 
-    if(iph->ip_p != IPPROTO_TCP) continue;
-    tcph = (struct tcphdr *)(packet + sizeof(struct ether_header) + iph->ip_hl*4);
-    tHL = (sizeof(struct ether_header)) + iph->ip_hl*4 + tcph->th_off*4 ;
-  	
     printf("---Ethernet---\n");
     printf("Destination MAC: %s\n", ether_ntoa((struct ether_addr *)eth->ether_dhost));
     printf("Source MAC: %s\n", ether_ntoa((struct ether_addr *)eth->ether_shost));
   	
+    if (ntohs(eth->ether_type) != ETHERTYPE_IP) {
+      printf("\n");
+      continue; //not IP, big endian -> little endian
+    }
+    iph = (struct ip *)(packet + sizeof(struct ether_header)); 
+
     printf("---IPv4---\n");
     printf("Source IP: %s\n", inet_ntoa(iph->ip_src));
     printf("Destination IP: %s\n", inet_ntoa(iph->ip_dst));
-  	
+
+    if(iph->ip_p != IPPROTO_TCP) { printf("\n"); continue; }
+    tcph = (struct tcphdr *)(packet + sizeof(struct ether_header) + iph->ip_hl*4);
+    //tHL = (sizeof(struct ether_header)) + iph->ip_hl*4 + tcph->th_off*4 ; 
+    tHL = iph->ip_hl*4 + tcph->th_off*4 ;    
     printf("---TCP---\n");
     printf("Source PORT: %d\n" , ntohs(tcph->th_sport));
     printf("Destiantion PORT: %d\n", ntohs(tcph->th_dport));
   	
     printf("---Data---\n");
-    if(header->caplen - tHL >= 32) // have payload && longer than 32 bytes
-      dump(packet+tHL,32);
-    else if(header->caplen - tHL < 32) 
-      dump(packet+tHL, header->caplen - tHL);
-  	
+    if(ntohs(iph->ip_len) - tHL >= 32) // have payload && longer than 32 bytes
+      dump(packet + tHL + sizeof(struct ether_header),32); 
+    else if(ntohs(iph->ip_len) - tHL < 32) 
+      dump(packet + tHL + sizeof(struct ether_header), ntohs(iph->ip_len) - tHL);
+    	
     printf("\n");
+
 
   }
   pcap_close(handle);
