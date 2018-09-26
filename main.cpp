@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <pcap.h> 
-#include <net/ethernet.h>
-#include <netinet/ether.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
+#include <stdint.h>
+#include <libnet/include/libnet.h>
+#include <netinet/ether.h> //ether_ntoa()
+//#include <net/ethernet.h>
+//#include <netinet/ip.h>
+//#include <arpa/inet.h>
+//#include <netinet/tcp.h>
 
 void dump(const u_char* p, int len) {
   if(len<=0) {
@@ -42,45 +44,43 @@ int main(int argc, char* argv[]) {
 
   while (true) {
     struct pcap_pkthdr* header;
-    struct ether_header *eth;
-    struct ip *iph;
-    struct tcphdr *tcph;
+    struct libnet_ethernet_hdr *eth; 
+    struct libnet_ipv4_hdr *iph;
+    struct libnet_tcp_hdr *tcph;
     const u_char* packet;
-    int tHL;
-    int res = pcap_next_ex(handle, &header, &packet);
+    uint32_t ip_tcp_hl;
+    uint32_t res = pcap_next_ex(handle, &header, &packet);
     if (res == 0) continue;
     if (res == -1 || res == -2) break;
     //printf("%u bytes captured\n", header->caplen);
    
-    eth = (struct ether_header *) packet;
-    
+    eth = (struct libnet_ethernet_hdr *) packet;
+  	
+    if (ntohs(eth->ether_type) != ETHERTYPE_IP) 
+      continue; //not IP, big endian -> little endian
+    iph = (struct libnet_ipv4_hdr *)(packet + sizeof(struct libnet_ethernet_hdr)); 
+
+    if(iph->ip_p != IPPROTO_TCP) continue; 
+    tcph = (struct libnet_tcp_hdr *)(packet + sizeof(struct libnet_ethernet_hdr) + iph->ip_hl*4);
+    ip_tcp_hl = iph->ip_hl*4 + tcph->th_off*4 ;
+
     printf("---Ethernet---\n");
     printf("Destination MAC: %s\n", ether_ntoa((struct ether_addr *)eth->ether_dhost));
     printf("Source MAC: %s\n", ether_ntoa((struct ether_addr *)eth->ether_shost));
-  	
-    if (ntohs(eth->ether_type) != ETHERTYPE_IP) {
-      printf("\n");
-      continue; //not IP, big endian -> little endian
-    }
-    iph = (struct ip *)(packet + sizeof(struct ether_header)); 
 
     printf("---IPv4---\n");
     printf("Source IP: %s\n", inet_ntoa(iph->ip_src));
     printf("Destination IP: %s\n", inet_ntoa(iph->ip_dst));
 
-    if(iph->ip_p != IPPROTO_TCP) { printf("\n"); continue; }
-    tcph = (struct tcphdr *)(packet + sizeof(struct ether_header) + iph->ip_hl*4);
-    //tHL = (sizeof(struct ether_header)) + iph->ip_hl*4 + tcph->th_off*4 ; 
-    tHL = iph->ip_hl*4 + tcph->th_off*4 ;    
     printf("---TCP---\n");
     printf("Source PORT: %d\n" , ntohs(tcph->th_sport));
     printf("Destiantion PORT: %d\n", ntohs(tcph->th_dport));
   	
     printf("---Data---\n");
-    if(ntohs(iph->ip_len) - tHL >= 32) // have payload && longer than 32 bytes
-      dump(packet + tHL + sizeof(struct ether_header),32); 
-    else if(ntohs(iph->ip_len) - tHL < 32) 
-      dump(packet + tHL + sizeof(struct ether_header), ntohs(iph->ip_len) - tHL);
+    if(ntohs(iph->ip_len) - ip_tcp_hl >= 32) // have payload && longer than 32 bytes
+      dump(packet + ip_tcp_hl + sizeof(struct libnet_ethernet_hdr),32); 
+    else if(ntohs(iph->ip_len) - ip_tcp_hl < 32) 
+      dump(packet + ip_tcp_hl + sizeof(struct libnet_ethernet_hdr), ntohs(iph->ip_len) - ip_tcp_hl);
     	
     printf("\n");
 
